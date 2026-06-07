@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Formatter - Tweet Image Filter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .input-panel {
+            width: 30%;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .input-panel h2 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #333;
+        }
+
+        .input-panel label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+            margin-top: 15px;
+        }
+
+        textarea {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            resize: none;
+            margin-bottom: 12px;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .btn-process {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-process:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-process:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-clear {
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .btn-clear:hover {
+            background: #efefef;
+        }
+
+        .stats {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #666;
+            margin-top: 12px;
+        }
+
+        .stats div {
+            margin: 4px 0;
+        }
+
+        .display-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .display-panel h2 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #333;
+        }
+
+        .json-viewer {
+            flex: 1;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            border-radius: 6px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            position: relative;
+        }
+
+        .json-viewer pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .keyword { color: #9cdcfe; }
+        .string { color: #ce9178; }
+        .number { color: #b5cea8; }
+        .boolean { color: #569cd6; }
+        .null { color: #569cd6; }
+        .error { color: #f48771; }
+
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 16px;
+            gap: 12px;
+        }
+
+        .pagination button {
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+
+        .pagination-info {
+            text-align: center;
+            font-size: 13px;
+            color: #666;
+            flex: 1;
+        }
+
+        .empty-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+            text-align: center;
+            flex-direction: column;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #666;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 8px;
+            font-size: 13px;
+            border-left: 4px solid #c33;
+        }
+
+        .success-message {
+            background: #efe;
+            color: #3c3;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 8px;
+            font-size: 13px;
+            border-left: 4px solid #3c3;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                flex-direction: column;
+            }
+
+            .input-panel {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #e0e0e0;
+                max-height: 40%;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 JSON Formatter</h1>
+            <p>Parse URLs, filter by tweet images, and display formatted JSON (up to 50 results)</p>
+        </div>
+
+        <div class="content">
+            <div class="input-panel">
+                <h2>Input URLs</h2>
+                <label>Paste your URL list (one per line):<br><small>Supports both direct URLs and web.archive.org links</small></label>
+                <textarea id="urlInput" placeholder="Paste URLs here...&#10;https://example.com/api/data&#10;https://web.archive.org/web/20260602175622/https://twitter.com/user/status/123..."></textarea>
+
+                <div class="button-group">
+                    <button class="btn-process" id="processBtn" onclick="processUrls()">Process URLs</button>
+                    <button class="btn-clear" onclick="clearInput()">Clear</button>
+                </div>
+
+                <div class="stats">
+                    <div><strong>Status:</strong> <span id="status">Ready</span></div>
+                    <div><strong>URLs Input:</strong> <span id="urlCount">0</span></div>
+                    <div><strong>Valid (with images):</strong> <span id="validCount">0</span></div>
+                    <div><strong>Failed:</strong> <span id="failedCount">0</span></div>
+                </div>
+
+                <div id="message"></div>
+            </div>
+
+            <div class="display-panel">
+                <h2>Formatted Result</h2>
+                <div class="json-viewer" id="jsonViewer">
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                            <polyline points="13 2 13 9 20 9"></polyline>
+                        </svg>
+                        <p>Paste URLs and click "Process URLs" to get started</p>
+                    </div>
+                </div>
+
+                <div class="pagination">
+                    <button class="btn-process" id="prevBtn" onclick="showPrevious()" style="flex: 0 1 100px;">← Previous</button>
+                    <div class="pagination-info">
+                        <span id="currentPage">0</span> / <span id="totalPages">0</span>
+                    </div>
+                    <button class="btn-process" id="nextBtn" onclick="showNext()" style="flex: 0 1 100px;">Next →</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let results = [];
+        let currentIndex = 0;
+
+        // Extract actual URL from web.archive.org link
+        function extractUrl(url) {
+            const archiveMatch = url.match(/web\.archive\.org\/web\/\d+\/(.*)/);
+            if (archiveMatch) {
+                return decodeURIComponent(archiveMatch[1]);
+            }
+            return url.trim();
+        }
+
+        // Check if JSON has images in tweets section
+        function hasImagesInTweets(data) {
+            if (!data || typeof data !== 'object') return false;
+
+            if (Array.isArray(data.tweets)) {
+                return data.tweets.some(tweet => {
+                    if (!tweet || typeof tweet !== 'object') return false;
+                    if (Array.isArray(tweet.images)) {
+                        return tweet.images.some(img => typeof img === 'string' && img.length > 0);
+                    }
+                    if (tweet.image && typeof tweet.image === 'string') {
+                        return tweet.image.length > 0;
+                    }
+                    return false;
+                });
+            }
+            return false;
+        }
+
+        // Syntax highlight JSON
+        function syntaxHighlight(json) {
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+                let cls = 'number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'keyword';
+                    } else {
+                        cls = 'string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'null';
+                }
+                return `<span class="${cls}">${match}</span>`;
+            });
+        }
+
+        async function processUrls() {
+            const input = document.getElementById('urlInput').value;
+            const messageDiv = document.getElementById('message');
+            const processBtn = document.getElementById('processBtn');
+
+            if (!input.trim()) {
+                messageDiv.innerHTML = '<div class="error-message">Please paste at least one URL</div>';
+                return;
+            }
+
+            messageDiv.innerHTML = '<div class="loading"><div class="spinner"></div> Processing...</div>';
+            processBtn.disabled = true;
+
+            const urls = input.split('\n').filter(url => url.trim().length > 0);
+            document.getElementById('urlCount').textContent = urls.length;
+            document.getElementById('status').textContent = 'Processing...';
+
+            results = [];
+            let failedCount = 0;
+
+            for (let i = 0; i < urls.length && results.length < 50; i++) {
+                try {
+                    const url = extractUrl(urls[i]);
+
+                    // Add timeout to fetch request
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                    const response = await fetch(url, {
+                        signal: controller.signal,
+                        mode: 'cors'
+                    });
+
+                    clearTimeout(timeoutId);
+
+                    if (!response.ok) {
+                        failedCount++;
+                        continue;
+                    }
+
+                    const data = await response.json();
+
+                    if (hasImagesInTweets(data)) {
+                        results.push({
+                            url: url,
+                            data: data,
+                            timestamp: new Date().toLocaleString()
+                        });
+                    }
+                } catch (error) {
+                    failedCount++;
+                    console.error(`Error processing ${urls[i]}:`, error);
+                }
+            }
+
+            document.getElementById('failedCount').textContent = failedCount;
+            document.getElementById('validCount').textContent = results.length;
+            document.getElementById('totalPages').textContent = results.length;
+
+            if (results.length > 0) {
+                currentIndex = 0;
+                displayResult(0);
+                messageDiv.innerHTML = `<div class="success-message">✓ Found ${results.length} valid results (showing up to 50)</div>`;
+                document.getElementById('status').textContent = 'Complete';
+            } else {
+                messageDiv.innerHTML = '<div class="error-message">No results found. Make sure URLs contain JSON with tweet images.</div>';
+                document.getElementById('status').textContent = 'No results';
+                clearDisplay();
+            }
+
+            processBtn.disabled = false;
+        }
+
+        function displayResult(index) {
+            if (index < 0 || index >= results.length) return;
+
+            const result = results[index];
+            const viewer = document.getElementById('jsonViewer');
+            const jsonString = JSON.stringify(result.data, null, 2);
+
+            viewer.innerHTML = `<pre>${syntaxHighlight(jsonString)}</pre>`;
+            document.getElementById('currentPage').textContent = index + 1;
+
+            document.getElementById('prevBtn').disabled = index === 0;
+            document.getElementById('nextBtn').disabled = index === results.length - 1;
+
+            currentIndex = index;
+        }
+
+        function showNext() {
+            if (currentIndex < results.length - 1) {
+                displayResult(currentIndex + 1);
+            }
+        }
+
+        function showPrevious() {
+            if (currentIndex > 0) {
+                displayResult(currentIndex - 1);
+            }
+        }
+
+        function clearInput() {
+            document.getElementById('urlInput').value = '';
+            document.getElementById('message').innerHTML = '';
+            results = [];
+            currentIndex = 0;
+            clearDisplay();
+            document.getElementById('urlCount').textContent = '0';
+            document.getElementById('validCount').textContent = '0';
+            document.getElementById('failedCount').textContent = '0';
+            document.getElementById('status').textContent = 'Ready';
+        }
+
+        function clearDisplay() {
+            const viewer = document.getElementById('jsonViewer');
+            viewer.innerHTML = `<div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                    <polyline points="13 2 13 9 20 9"></polyline>
+                </svg>
+                <p>No results to display</p>
+            </div>`;
+            document.getElementById('currentPage').textContent = '0';
+            document.getElementById('totalPages').textContent = '0';
+            document.getElementById('prevBtn').disabled = true;
+            document.getElementById('nextBtn').disabled = true;
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') showPrevious();
+            if (e.key === 'ArrowRight') showNext();
+        });
+    </script>
+</body>
+</html>
