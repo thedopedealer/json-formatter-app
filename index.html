@@ -214,7 +214,7 @@
             border-top: 1px solid #ddd;
             font-size: 12px;
             color: #666;
-            max-height: 120px;
+            max-height: 80px;
             overflow-y: auto;
         }
 
@@ -225,33 +225,6 @@
         .page-info-item {
             margin: 4px 0;
             word-break: break-all;
-        }
-
-        .image-urls {
-            background: #f0f7ff;
-            padding: 8px;
-            border-radius: 4px;
-            margin-top: 8px;
-        }
-
-        .image-urls-title {
-            font-weight: bold;
-            color: #33c;
-            margin-bottom: 4px;
-        }
-
-        .image-url-link {
-            display: block;
-            padding: 4px;
-            color: #0066cc;
-            text-decoration: none;
-            word-break: break-all;
-            font-size: 11px;
-        }
-
-        .image-url-link:hover {
-            text-decoration: underline;
-            background: #e8f4ff;
         }
 
         .pagination {
@@ -379,7 +352,7 @@
     <div class="container">
         <div class="header">
             <h1>🖼️ Image Detector</h1>
-            <p>Parse URLs and detect media URLs (pbs.twimg.com, etc.) in page content (up to 50 results)</p>
+            <p>Parse URLs and detect media URLs (pbs.twimg.com), display images (up to 50 results)</p>
         </div>
 
         <div class="content">
@@ -408,16 +381,12 @@
 
             <div class="main-content">
                 <div class="display-panel">
-                    <h2>Page Preview & Detected Media URLs</h2>
+                    <h2>Image Gallery</h2>
                     <div class="page-viewer">
-                        <iframe id="pageFrame" sandbox="allow-same-origin allow-scripts"></iframe>
+                        <iframe id="pageFrame"></iframe>
                         <div class="page-info">
                             <div class="page-info-item"><strong>URL:</strong> <span id="pageUrl">-</span></div>
-                            <div class="page-info-item"><strong>Media URLs Found:</strong> <span id="imageCount">0</span></div>
-                            <div id="imageUrlsContainer" class="image-urls" style="display:none;">
-                                <div class="image-urls-title">🖼️ Media URLs:</div>
-                                <div id="imageUrlsList"></div>
-                            </div>
+                            <div class="page-info-item"><strong>Images:</strong> <span id="imageCount">0</span></div>
                         </div>
                     </div>
 
@@ -441,12 +410,7 @@
 
         const ALLOWED_MEDIA_DOMAINS = [
             'pbs.twimg.com',
-            'pbs-images.twimg.com',
-            'cdninstagram.com',
-            'scontent.cdninstagram.com',
-            'imgur.com',
-            'i.imgur.com',
-            'media.giphy.com'
+            'pbs-images.twimg.com'
         ];
 
         function log(msg) {
@@ -500,31 +464,66 @@
             return url.trim();
         }
 
-        function detectMediaUrls(html) {
-            const mediaUrls = new Set();
+        function extractCleanImageUrls(html) {
+            const imageUrls = [];
             const urlRegex = /(https?:\/\/[^\s"'<>{}|\\^`\[\]]*)/gi;
             const urls = html.match(urlRegex) || [];
 
             urls.forEach(url => {
-                const isAllowedDomain = ALLOWED_MEDIA_DOMAINS.some(domain => 
-                    url.toLowerCase().includes(domain)
-                );
-                
-                if (isAllowedDomain) {
-                    mediaUrls.add(url);
+                // Look for pbs.twimg.com URLs
+                if (url.includes('pbs.twimg.com') || url.includes('pbs-images.twimg.com')) {
+                    // Extract the clean image URL (remove archive.org wrapper if present)
+                    const pbsMatch = url.match(/https?:\/\/(pbs[^\/]*\.twimg\.com[^\s"'<>}]*)/);
+                    if (pbsMatch) {
+                        const cleanUrl = 'https://' + pbsMatch[1];
+                        if (!imageUrls.includes(cleanUrl)) {
+                            imageUrls.push(cleanUrl);
+                        }
+                    }
                 }
             });
 
-            return Array.from(mediaUrls);
+            return imageUrls;
         }
 
         function hasMediaUrls(html) {
-            const mediaUrls = detectMediaUrls(html);
+            const mediaUrls = extractCleanImageUrls(html);
             return {
                 found: mediaUrls.length > 0,
                 count: mediaUrls.length,
                 urls: mediaUrls
             };
+        }
+
+        function generateImageGalleryHTML(imageUrls) {
+            return `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { margin: 0; padding: 20px; background: #f5f5f5; font-family: Arial, sans-serif; }
+                        .gallery { display: flex; flex-direction: column; gap: 20px; }
+                        .image-container { background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+                        img { max-width: 100%; max-height: 500px; height: auto; border-radius: 4px; }
+                        .image-url { margin-top: 10px; font-size: 11px; color: #666; word-break: break-all; padding: 8px; background: #f0f0f0; border-radius: 4px; }
+                        .image-url a { color: #0066cc; text-decoration: none; }
+                        .image-url a:hover { text-decoration: underline; }
+                    </style>
+                </head>
+                <body>
+                    <div class="gallery">
+                        ${imageUrls.map((url, idx) => `
+                            <div class="image-container">
+                                <img src="${url}" alt="Image ${idx + 1}" onerror="this.innerHTML='Failed to load image'"/>
+                                <div class="image-url">
+                                    <a href="${url}" target="_blank">Open image in new tab</a>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </body>
+                </html>
+            `;
         }
 
         function stopProcessing() {
@@ -613,9 +612,8 @@
                     if (mediaCheck.found) {
                         results.push({
                             url: url,
-                            content: content,
-                            imageCount: mediaCheck.count,
                             imageUrls: mediaCheck.urls,
+                            imageCount: mediaCheck.count,
                             timestamp: new Date().toLocaleString()
                         });
                         log(`  ✓ Match! (${results.length}/${Math.min(50, urls.length)})`);
@@ -656,28 +654,12 @@
             const result = results[index];
             const frame = document.getElementById('pageFrame');
             
-            frame.srcdoc = result.content;
+            // Generate and display image gallery
+            const galleryHTML = generateImageGalleryHTML(result.imageUrls);
+            frame.srcdoc = galleryHTML;
             
             document.getElementById('pageUrl').textContent = result.url;
             document.getElementById('imageCount').textContent = result.imageCount;
-            
-            // Display detected image URLs
-            const urlsContainer = document.getElementById('imageUrlsContainer');
-            const urlsList = document.getElementById('imageUrlsList');
-            urlsList.innerHTML = '';
-            
-            result.imageUrls.forEach(imgUrl => {
-                const link = document.createElement('a');
-                link.href = imgUrl;
-                link.target = '_blank';
-                link.className = 'image-url-link';
-                link.title = imgUrl;
-                link.textContent = imgUrl.length > 100 ? imgUrl.substring(0, 100) + '...' : imgUrl;
-                urlsList.appendChild(link);
-            });
-            
-            urlsContainer.style.display = result.imageUrls.length > 0 ? 'block' : 'none';
-            
             document.getElementById('currentPage').textContent = index + 1;
 
             document.getElementById('prevBtn').disabled = index === 0;
@@ -715,7 +697,6 @@
             document.getElementById('pageFrame').srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;"><p>No pages to display</p></div>';
             document.getElementById('pageUrl').textContent = '-';
             document.getElementById('imageCount').textContent = '0';
-            document.getElementById('imageUrlsContainer').style.display = 'none';
             document.getElementById('currentPage').textContent = '0';
             document.getElementById('totalPages').textContent = '0';
             document.getElementById('prevBtn').disabled = true;
