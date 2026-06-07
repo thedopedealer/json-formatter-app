@@ -214,7 +214,7 @@
             border-top: 1px solid #ddd;
             font-size: 12px;
             color: #666;
-            max-height: 100px;
+            max-height: 120px;
             overflow-y: auto;
         }
 
@@ -225,6 +225,33 @@
         .page-info-item {
             margin: 4px 0;
             word-break: break-all;
+        }
+
+        .image-urls {
+            background: #f0f7ff;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 8px;
+        }
+
+        .image-urls-title {
+            font-weight: bold;
+            color: #33c;
+            margin-bottom: 4px;
+        }
+
+        .image-url-link {
+            display: block;
+            padding: 4px;
+            color: #0066cc;
+            text-decoration: none;
+            word-break: break-all;
+            font-size: 11px;
+        }
+
+        .image-url-link:hover {
+            text-decoration: underline;
+            background: #e8f4ff;
         }
 
         .pagination {
@@ -381,13 +408,16 @@
 
             <div class="main-content">
                 <div class="display-panel">
-                    <h2>Page Preview</h2>
+                    <h2>Page Preview & Detected Media URLs</h2>
                     <div class="page-viewer">
                         <iframe id="pageFrame" sandbox="allow-same-origin allow-scripts"></iframe>
                         <div class="page-info">
                             <div class="page-info-item"><strong>URL:</strong> <span id="pageUrl">-</span></div>
                             <div class="page-info-item"><strong>Media URLs Found:</strong> <span id="imageCount">0</span></div>
-                            <div class="page-info-item"><strong>Type:</strong> <span id="contentType">-</span></div>
+                            <div id="imageUrlsContainer" class="image-urls" style="display:none;">
+                                <div class="image-urls-title">🖼️ Media URLs:</div>
+                                <div id="imageUrlsList"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -409,7 +439,6 @@
         let isProcessing = false;
         let abortControllers = [];
 
-        // List of allowed media domains
         const ALLOWED_MEDIA_DOMAINS = [
             'pbs.twimg.com',
             'pbs-images.twimg.com',
@@ -473,13 +502,10 @@
 
         function detectMediaUrls(html) {
             const mediaUrls = new Set();
-
-            // Extract all URLs from content
             const urlRegex = /(https?:\/\/[^\s"'<>{}|\\^`\[\]]*)/gi;
             const urls = html.match(urlRegex) || [];
 
             urls.forEach(url => {
-                // Only keep URLs from allowed media domains
                 const isAllowedDomain = ALLOWED_MEDIA_DOMAINS.some(domain => 
                     url.toLowerCase().includes(domain)
                 );
@@ -558,7 +584,7 @@
 
                     const response = await fetch(url, {
                         signal: controller.signal,
-                        mode: 'cors',
+                        mode: 'no-cors',
                         headers: {
                             'User-Agent': 'Mozilla/5.0'
                         }
@@ -566,19 +592,19 @@
 
                     clearTimeout(timeoutId);
 
-                    if (!response.ok) {
-                        log(`  ✗ HTTP ${response.status}`);
+                    let content;
+                    try {
+                        if (response.ok) {
+                            content = await response.text();
+                        } else {
+                            log(`  ✗ HTTP ${response.status}`);
+                            failedCount++;
+                            continue;
+                        }
+                    } catch (e) {
+                        log(`  ✗ Cannot read response: ${e.message}`);
                         failedCount++;
                         continue;
-                    }
-
-                    const contentType = response.headers.get('content-type') || 'text/html';
-                    let content;
-
-                    if (contentType.includes('application/json')) {
-                        content = JSON.stringify(await response.json(), null, 2);
-                    } else {
-                        content = await response.text();
                     }
 
                     const mediaCheck = hasMediaUrls(content);
@@ -590,7 +616,6 @@
                             content: content,
                             imageCount: mediaCheck.count,
                             imageUrls: mediaCheck.urls,
-                            contentType: contentType,
                             timestamp: new Date().toLocaleString()
                         });
                         log(`  ✓ Match! (${results.length}/${Math.min(50, urls.length)})`);
@@ -635,7 +660,24 @@
             
             document.getElementById('pageUrl').textContent = result.url;
             document.getElementById('imageCount').textContent = result.imageCount;
-            document.getElementById('contentType').textContent = result.contentType.split(';')[0];
+            
+            // Display detected image URLs
+            const urlsContainer = document.getElementById('imageUrlsContainer');
+            const urlsList = document.getElementById('imageUrlsList');
+            urlsList.innerHTML = '';
+            
+            result.imageUrls.forEach(imgUrl => {
+                const link = document.createElement('a');
+                link.href = imgUrl;
+                link.target = '_blank';
+                link.className = 'image-url-link';
+                link.title = imgUrl;
+                link.textContent = imgUrl.length > 100 ? imgUrl.substring(0, 100) + '...' : imgUrl;
+                urlsList.appendChild(link);
+            });
+            
+            urlsContainer.style.display = result.imageUrls.length > 0 ? 'block' : 'none';
+            
             document.getElementById('currentPage').textContent = index + 1;
 
             document.getElementById('prevBtn').disabled = index === 0;
@@ -673,7 +715,7 @@
             document.getElementById('pageFrame').srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;"><p>No pages to display</p></div>';
             document.getElementById('pageUrl').textContent = '-';
             document.getElementById('imageCount').textContent = '0';
-            document.getElementById('contentType').textContent = '-';
+            document.getElementById('imageUrlsContainer').style.display = 'none';
             document.getElementById('currentPage').textContent = '0';
             document.getElementById('totalPages').textContent = '0';
             document.getElementById('prevBtn').disabled = true;
