@@ -118,13 +118,28 @@
             color: white;
         }
 
-        .btn-process:hover {
+        .btn-process:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
         }
 
         .btn-process:disabled {
             opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-stop {
+            background: #d32f2f;
+            color: white;
+        }
+
+        .btn-stop:hover:not(:disabled) {
+            background: #b71c1c;
+            transform: translateY(-2px);
+        }
+
+        .btn-stop:disabled {
+            opacity: 0.3;
             cursor: not-allowed;
         }
 
@@ -270,6 +285,8 @@
             padding: 12px;
             border-radius: 6px;
             font-size: 13px;
+            max-height: 60px;
+            overflow-y: auto;
         }
 
         .error-message {
@@ -288,6 +305,19 @@
             background: #eef;
             color: #33c;
             border-left: 4px solid #33c;
+        }
+
+        .debug-log {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px;
+            margin-top: 8px;
+            font-size: 11px;
+            font-family: monospace;
+            max-height: 80px;
+            overflow-y: auto;
+            color: #666;
         }
 
         @media (max-width: 768px) {
@@ -334,6 +364,7 @@
                 <div class="controls">
                     <div class="button-group">
                         <button class="btn-process" id="processBtn" onclick="processUrls()">⚡ Process URLs</button>
+                        <button class="btn-stop" id="stopBtn" onclick="stopProcessing()" disabled style="display:none;">⏹️ Stop</button>
                         <button class="btn-clear" onclick="clearInput()">🗑️ Clear</button>
                     </div>
                     <div class="stats">
@@ -345,16 +376,18 @@
                 </div>
 
                 <div id="message"></div>
+                <div id="debugLog" class="debug-log" style="display:none;"></div>
             </div>
 
             <div class="main-content">
                 <div class="display-panel">
                     <h2>Page Preview</h2>
                     <div class="page-viewer">
-                        <iframe id="pageFrame"></iframe>
+                        <iframe id="pageFrame" sandbox="allow-same-origin allow-scripts"></iframe>
                         <div class="page-info">
                             <div class="page-info-item"><strong>URL:</strong> <span id="pageUrl">-</span></div>
                             <div class="page-info-item"><strong>Images Found:</strong> <span id="imageCount">0</span></div>
+                            <div class="page-info-item"><strong>Type:</strong> <span id="contentType">-</span></div>
                         </div>
                     </div>
 
@@ -373,6 +406,21 @@
     <script>
         let results = [];
         let currentIndex = 0;
+        let isProcessing = false;
+        let abortControllers = [];
+
+        function log(msg) {
+            const debugLog = document.getElementById('debugLog');
+            debugLog.style.display = 'block';
+            const timestamp = new Date().toLocaleTimeString();
+            debugLog.innerHTML += `[${timestamp}] ${msg}<br>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('debugLog').innerHTML = '';
+            document.getElementById('debugLog').style.display = 'none';
+        }
 
         function extractUrlsFromPaste(text) {
             const urls = [];
@@ -395,11 +443,11 @@
             const urlRegex = /(https?:\/\/[^\s]+)/gi;
             const matches = text.match(urlRegex);
             if (matches) {
-                return matches.map(url => url.trim());
+                return matches.map(url => url.trim().replace(/[\[\]]/g, ''));
             }
 
             return text.split('\n').filter(line => {
-                const trimmed = line.trim();
+                const trimmed = line.trim().replace(/[\[\]]/g, '');
                 return trimmed.length > 0 && (trimmed.startsWith('http://') || trimmed.startsWith('https://'));
             });
         }
@@ -417,7 +465,14 @@
             const imgRegex = /<img[^>]*src=["']([^"']+)["'][^>]*>/gi;
             const imgMatches = html.match(imgRegex);
             if (imgMatches && imgMatches.length > 0) {
-                return { found: true, count: imgMatches.length };
+                return { found: true, count: imgMatches.length, type: 'img-tags' };
+            }
+
+            // Check for background images
+            const bgRegex = /background-image:\s*url\(['"]?([^'")\s]+)['"]?\)/gi;
+            const bgMatches = html.match(bgRegex);
+            if (bgMatches && bgMatches.length > 0) {
+                return { found: true, count: bgMatches.length, type: 'bg-images' };
             }
 
             // Check for image URLs in JSON
@@ -425,44 +480,64 @@
                 const data = JSON.parse(html);
                 let imageCount = 0;
                 
-                const searchForImages = (obj) => {
+                const searchForImages = (obj, depth = 0) => {
+                    if (depth > 10) return 0;
+                    
                     if (Array.isArray(obj)) {
-                        obj.forEach(item => imageCount += searchForImages(item));
+                        return obj.reduce((sum, item) => sum + searchForImages(item, depth + 1), 0);
                     } else if (obj && typeof obj === 'object') {
-                        Object.values(obj).forEach(value => imageCount += searchForImages(value));
+                        return Object.values(obj).reduce((sum, value) => sum + searchForImages(value, depth + 1), 0);
                     } else if (typeof obj === 'string') {
-                        if (/(\.jpg|\.jpeg|\.png|\.gif|\.webp|\.svg)(\?[^"']*)?$/i.test(obj) || /\.(jpg|jpeg|png|gif|webp|svg)/i.test(obj)) {
-                            imageCount++;
+                        if (/(\.jpg|\.jpeg|\.png|\.gif|\.webp|\.svg|\.bmp)(\?[^"']*)?$/i.test(obj) || /media|image|img/i.test(obj)) {
+                            return 1;
                         }
                     }
-                    return imageCount > 0 ? 1 : 0;
+                    return 0;
                 };
                 
                 const count = searchForImages(data);
-                return { found: count > 0, count: count };
+                return { found: count > 0, count: count, type: 'json' };
             } catch (e) {}
 
-            return { found: false, count: 0 };
+            return { found: false, count: 0, type: 'none' };
+        }
+
+        function stopProcessing() {
+            isProcessing = false;
+            abortControllers.forEach(ctrl => ctrl.abort());
+            abortControllers = [];
+            log('Processing stopped by user');
+            document.getElementById('processBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('stopBtn').style.display = 'none';
+            document.getElementById('status').textContent = 'Stopped';
         }
 
         async function processUrls() {
             const input = document.getElementById('urlInput').value;
             const messageDiv = document.getElementById('message');
             const processBtn = document.getElementById('processBtn');
+            const stopBtn = document.getElementById('stopBtn');
 
             if (!input.trim()) {
                 messageDiv.innerHTML = '<div class="message error-message">❌ Please paste at least one URL</div>';
                 return;
             }
 
+            clearLog();
             messageDiv.innerHTML = '<div class="message info-message"><div class="loading"><div class="spinner"></div> Processing...</div></div>';
             processBtn.disabled = true;
+            stopBtn.disabled = false;
+            stopBtn.style.display = 'inline-block';
 
             let urls = extractUrlsFromPaste(input);
+            log(`Extracted ${urls.length} URLs`);
 
             if (urls.length === 0) {
                 messageDiv.innerHTML = '<div class="message error-message">❌ No valid URLs found.</div>';
                 processBtn.disabled = false;
+                stopBtn.disabled = true;
+                stopBtn.style.display = 'none';
                 return;
             }
 
@@ -471,45 +546,57 @@
 
             results = [];
             let failedCount = 0;
+            isProcessing = true;
 
-            for (let i = 0; i < urls.length && results.length < 50; i++) {
+            for (let i = 0; i < urls.length && results.length < 50 && isProcessing; i++) {
                 try {
                     const url = extractUrl(urls[i]);
+                    log(`[${i + 1}/${urls.length}] Fetching: ${url.substring(0, 60)}...`);
+
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+                    abortControllers.push(controller);
+                    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
                     const response = await fetch(url, {
                         signal: controller.signal,
-                        mode: 'cors'
+                        mode: 'cors',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0'
+                        }
                     });
 
                     clearTimeout(timeoutId);
 
                     if (!response.ok) {
+                        log(`  ✗ HTTP ${response.status}`);
                         failedCount++;
                         continue;
                     }
 
-                    const contentType = response.headers.get('content-type');
+                    const contentType = response.headers.get('content-type') || 'text/html';
                     let content;
 
-                    if (contentType && contentType.includes('application/json')) {
+                    if (contentType.includes('application/json')) {
                         content = JSON.stringify(await response.json(), null, 2);
                     } else {
                         content = await response.text();
                     }
 
                     const imageCheck = hasImages(content);
+                    log(`  Type: ${imageCheck.type}, Images: ${imageCheck.count}`);
 
                     if (imageCheck.found) {
                         results.push({
                             url: url,
                             content: content,
                             imageCount: imageCheck.count,
+                            contentType: contentType,
                             timestamp: new Date().toLocaleString()
                         });
+                        log(`  ✓ Found! (${results.length}/${Math.min(50, urls.length)})`);
                     }
                 } catch (error) {
+                    log(`  ✗ Error: ${error.message}`);
                     failedCount++;
                 }
             }
@@ -521,7 +608,7 @@
             if (results.length > 0) {
                 currentIndex = 0;
                 displayResult(0);
-                messageDiv.innerHTML = `<div class="message success-message">✓ Found ${results.length} page${results.length !== 1 ? 's' : ''} with images</div>`;
+                messageDiv.innerHTML = `<div class="message success-message">✓ Found ${results.length} page${results.length !== 1 ? 's' : ''} with images (processed ${urls.length} URLs)</div>`;
                 document.getElementById('status').textContent = 'Complete';
             } else {
                 messageDiv.innerHTML = '<div class="message error-message">❌ No pages with images found.</div>';
@@ -530,6 +617,10 @@
             }
 
             processBtn.disabled = false;
+            stopBtn.disabled = true;
+            stopBtn.style.display = 'none';
+            isProcessing = false;
+            log('Processing complete');
         }
 
         function displayResult(index) {
@@ -542,6 +633,7 @@
             
             document.getElementById('pageUrl').textContent = result.url;
             document.getElementById('imageCount').textContent = result.imageCount;
+            document.getElementById('contentType').textContent = result.contentType.split(';')[0];
             document.getElementById('currentPage').textContent = index + 1;
 
             document.getElementById('prevBtn').disabled = index === 0;
@@ -565,6 +657,7 @@
         function clearInput() {
             document.getElementById('urlInput').value = '';
             document.getElementById('message').innerHTML = '';
+            clearLog();
             results = [];
             currentIndex = 0;
             clearDisplay();
@@ -578,6 +671,7 @@
             document.getElementById('pageFrame').srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;"><p>No pages to display</p></div>';
             document.getElementById('pageUrl').textContent = '-';
             document.getElementById('imageCount').textContent = '0';
+            document.getElementById('contentType').textContent = '-';
             document.getElementById('currentPage').textContent = '0';
             document.getElementById('totalPages').textContent = '0';
             document.getElementById('prevBtn').disabled = true;
