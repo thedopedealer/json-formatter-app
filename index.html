@@ -19,7 +19,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             background: white;
             border-radius: 12px;
@@ -49,42 +49,40 @@
 
         .content {
             display: flex;
+            flex-direction: column;
             flex: 1;
             overflow: hidden;
         }
 
-        .input-panel {
-            width: 30%;
-            border-right: 1px solid #e0e0e0;
+        .input-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 2px solid #e0e0e0;
             display: flex;
             flex-direction: column;
-            padding: 20px;
-            overflow-y: auto;
+            gap: 12px;
         }
 
-        .input-panel h2 {
+        .input-section h2 {
             font-size: 16px;
-            margin-bottom: 12px;
             color: #333;
         }
 
-        .input-panel label {
+        .input-section label {
             display: block;
             font-size: 12px;
             color: #666;
-            margin-bottom: 8px;
-            margin-top: 15px;
         }
 
         textarea {
-            flex: 1;
+            width: 100%;
+            height: 120px;
             padding: 12px;
-            border: 1px solid #ddd;
+            border: 2px solid #ddd;
             border-radius: 6px;
             font-family: 'Courier New', monospace;
             font-size: 12px;
-            resize: none;
-            margin-bottom: 12px;
+            resize: vertical;
         }
 
         textarea:focus {
@@ -93,14 +91,20 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
         .button-group {
             display: flex;
             gap: 8px;
         }
 
         button {
-            flex: 1;
-            padding: 12px;
+            padding: 12px 20px;
             border: none;
             border-radius: 6px;
             font-weight: 600;
@@ -134,23 +138,36 @@
         }
 
         .stats {
-            background: #f8f9fa;
-            padding: 12px;
-            border-radius: 6px;
+            display: flex;
+            gap: 20px;
             font-size: 13px;
             color: #666;
-            margin-top: 12px;
+            flex-wrap: wrap;
         }
 
-        .stats div {
-            margin: 4px 0;
+        .stats-item {
+            background: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border-left: 3px solid #667eea;
+        }
+
+        .stats-item strong {
+            color: #333;
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            gap: 16px;
+            padding: 16px;
         }
 
         .display-panel {
             flex: 1;
             display: flex;
             flex-direction: column;
-            padding: 20px;
             overflow: hidden;
         }
 
@@ -190,13 +207,14 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 16px;
+            margin-top: 12px;
             gap: 12px;
         }
 
         .pagination button {
             padding: 8px 16px;
             font-size: 13px;
+            flex: 0 1 120px;
         }
 
         .pagination-info {
@@ -245,36 +263,34 @@
             100% { transform: rotate(360deg); }
         }
 
+        .message {
+            margin-top: 8px;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
         .error-message {
             background: #fee;
             color: #c33;
-            padding: 12px;
-            border-radius: 6px;
-            margin-top: 8px;
-            font-size: 13px;
             border-left: 4px solid #c33;
         }
 
         .success-message {
             background: #efe;
             color: #3c3;
-            padding: 12px;
-            border-radius: 6px;
-            margin-top: 8px;
-            font-size: 13px;
             border-left: 4px solid #3c3;
         }
 
-        @media (max-width: 768px) {
-            .content {
-                flex-direction: column;
-            }
+        .info-message {
+            background: #eef;
+            color: #33c;
+            border-left: 4px solid #33c;
+        }
 
-            .input-panel {
-                width: 100%;
-                border-right: none;
-                border-bottom: 1px solid #e0e0e0;
-                max-height: 40%;
+        @media (max-width: 768px) {
+            .container {
+                height: auto;
             }
 
             .header {
@@ -283,6 +299,35 @@
 
             .header h1 {
                 font-size: 20px;
+            }
+
+            .input-section {
+                padding: 15px;
+            }
+
+            textarea {
+                height: 100px;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .button-group {
+                width: 100%;
+            }
+
+            .button-group button {
+                flex: 1;
+            }
+
+            .stats {
+                flex-direction: column;
+            }
+
+            .main-content {
+                flex-direction: column;
+                padding: 12px;
             }
         }
     </style>
@@ -295,44 +340,47 @@
         </div>
 
         <div class="content">
-            <div class="input-panel">
+            <div class="input-section">
                 <h2>Input URLs</h2>
-                <label>Paste your URL list (one per line):<br><small>Supports both direct URLs and web.archive.org links</small></label>
-                <textarea id="urlInput" placeholder="Paste URLs here...&#10;https://example.com/api/data&#10;https://web.archive.org/web/20260602175622/https://twitter.com/user/status/123..."></textarea>
+                <label>Paste your URL list (one per line). Supports plain URLs, hyperlinks, and web.archive.org links:</label>
+                <textarea id="urlInput" placeholder="Paste URLs or hyperlinks here...&#10;https://example.com/api/data&#10;https://web.archive.org/web/20260602175622/https://twitter.com/user/status/123"></textarea>
 
-                <div class="button-group">
-                    <button class="btn-process" id="processBtn" onclick="processUrls()">Process URLs</button>
-                    <button class="btn-clear" onclick="clearInput()">Clear</button>
-                </div>
-
-                <div class="stats">
-                    <div><strong>Status:</strong> <span id="status">Ready</span></div>
-                    <div><strong>URLs Input:</strong> <span id="urlCount">0</span></div>
-                    <div><strong>Valid (with images):</strong> <span id="validCount">0</span></div>
-                    <div><strong>Failed:</strong> <span id="failedCount">0</span></div>
+                <div class="controls">
+                    <div class="button-group">
+                        <button class="btn-process" id="processBtn" onclick="processUrls()">⚡ Process URLs</button>
+                        <button class="btn-clear" onclick="clearInput()">🗑️ Clear</button>
+                    </div>
+                    <div class="stats">
+                        <div class="stats-item"><strong>URLs:</strong> <span id="urlCount">0</span></div>
+                        <div class="stats-item"><strong>Valid:</strong> <span id="validCount">0</span></div>
+                        <div class="stats-item"><strong>Failed:</strong> <span id="failedCount">0</span></div>
+                        <div class="stats-item"><strong>Status:</strong> <span id="status">Ready</span></div>
+                    </div>
                 </div>
 
                 <div id="message"></div>
             </div>
 
-            <div class="display-panel">
-                <h2>Formatted Result</h2>
-                <div class="json-viewer" id="jsonViewer">
-                    <div class="empty-state">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-                            <polyline points="13 2 13 9 20 9"></polyline>
-                        </svg>
-                        <p>Paste URLs and click "Process URLs" to get started</p>
+            <div class="main-content">
+                <div class="display-panel">
+                    <h2>Formatted Result</h2>
+                    <div class="json-viewer" id="jsonViewer">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                <polyline points="13 2 13 9 20 9"></polyline>
+                            </svg>
+                            <p>Paste URLs and click "Process URLs" to get started</p>
+                        </div>
                     </div>
-                </div>
 
-                <div class="pagination">
-                    <button class="btn-process" id="prevBtn" onclick="showPrevious()" style="flex: 0 1 100px;">← Previous</button>
-                    <div class="pagination-info">
-                        <span id="currentPage">0</span> / <span id="totalPages">0</span>
+                    <div class="pagination">
+                        <button class="btn-process" id="prevBtn" onclick="showPrevious()">← Previous</button>
+                        <div class="pagination-info">
+                            <span id="currentPage">0</span> / <span id="totalPages">0</span>
+                        </div>
+                        <button class="btn-process" id="nextBtn" onclick="showNext()">Next →</button>
                     </div>
-                    <button class="btn-process" id="nextBtn" onclick="showNext()" style="flex: 0 1 100px;">Next →</button>
                 </div>
             </div>
         </div>
@@ -341,6 +389,42 @@
     <script>
         let results = [];
         let currentIndex = 0;
+
+        // Extract URLs from pasted content (handles hyperlinks and plain text)
+        function extractUrlsFromPaste(text) {
+            const urls = [];
+
+            // Check if it's HTML with links
+            const htmlParser = new DOMParser();
+            try {
+                const doc = htmlParser.parseFromString(text, 'text/html');
+                const links = doc.querySelectorAll('a');
+                if (links.length > 0) {
+                    links.forEach(link => {
+                        const href = link.getAttribute('href');
+                        if (href && href.trim().length > 0) {
+                            urls.push(href.trim());
+                        }
+                    });
+                    if (urls.length > 0) return urls;
+                }
+            } catch (e) {
+                // If HTML parsing fails, try plain text parsing
+            }
+
+            // Fallback: Extract plain URLs
+            const urlRegex = /(https?:\/\/[^\s]+)/gi;
+            const matches = text.match(urlRegex);
+            if (matches) {
+                return matches.map(url => url.trim());
+            }
+
+            // Last resort: split by newlines and filter
+            return text.split('\n').filter(line => {
+                const trimmed = line.trim();
+                return trimmed.length > 0 && (trimmed.startsWith('http://') || trimmed.startsWith('https://'));
+            });
+        }
 
         // Extract actual URL from web.archive.org link
         function extractUrl(url) {
@@ -396,14 +480,22 @@
             const processBtn = document.getElementById('processBtn');
 
             if (!input.trim()) {
-                messageDiv.innerHTML = '<div class="error-message">Please paste at least one URL</div>';
+                messageDiv.innerHTML = '<div class="message error-message">❌ Please paste at least one URL</div>';
                 return;
             }
 
-            messageDiv.innerHTML = '<div class="loading"><div class="spinner"></div> Processing...</div>';
+            messageDiv.innerHTML = '<div class="message info-message"><div class="loading"><div class="spinner"></div> Processing...</div></div>';
             processBtn.disabled = true;
 
-            const urls = input.split('\n').filter(url => url.trim().length > 0);
+            // Extract URLs from paste (handles hyperlinks)
+            let urls = extractUrlsFromPaste(input);
+
+            if (urls.length === 0) {
+                messageDiv.innerHTML = '<div class="message error-message">❌ No valid URLs found. Make sure you paste URLs or hyperlinks.</div>';
+                processBtn.disabled = false;
+                return;
+            }
+
             document.getElementById('urlCount').textContent = urls.length;
             document.getElementById('status').textContent = 'Processing...';
 
@@ -452,10 +544,10 @@
             if (results.length > 0) {
                 currentIndex = 0;
                 displayResult(0);
-                messageDiv.innerHTML = `<div class="success-message">✓ Found ${results.length} valid results (showing up to 50)</div>`;
+                messageDiv.innerHTML = `<div class="message success-message">✓ Found ${results.length} valid result${results.length !== 1 ? 's' : ''} (showing up to 50)</div>`;
                 document.getElementById('status').textContent = 'Complete';
             } else {
-                messageDiv.innerHTML = '<div class="error-message">No results found. Make sure URLs contain JSON with tweet images.</div>';
+                messageDiv.innerHTML = '<div class="message error-message">❌ No results found. Make sure URLs contain JSON with tweet images.</div>';
                 document.getElementById('status').textContent = 'No results';
                 clearDisplay();
             }
@@ -507,7 +599,7 @@
             const viewer = document.getElementById('jsonViewer');
             viewer.innerHTML = `<div class="empty-state">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                    <path d="M13 2 13 9 20 9"></path>
                     <polyline points="13 2 13 9 20 9"></polyline>
                 </svg>
                 <p>No results to display</p>
@@ -522,6 +614,30 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft') showPrevious();
             if (e.key === 'ArrowRight') showNext();
+        });
+
+        // Handle paste event to auto-extract URLs from hyperlinks
+        document.getElementById('urlInput').addEventListener('paste', (e) => {
+            e.preventDefault();
+            const items = e.clipboardData.items;
+            let html = '';
+            let text = '';
+
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('text/html') !== -1) {
+                    html = e.clipboardData.getData('text/html');
+                } else if (items[i].type.indexOf('text/plain') !== -1) {
+                    text = e.clipboardData.getData('text/plain');
+                }
+            }
+
+            const content = html || text;
+            const urls = extractUrlsFromPaste(content);
+
+            if (urls.length > 0) {
+                document.getElementById('urlInput').value = urls.join('\n');
+                document.getElementById('message').innerHTML = `<div class="message info-message">✓ Extracted ${urls.length} URL${urls.length !== 1 ? 's' : ''}</div>`;
+            }
         });
     </script>
 </body>
