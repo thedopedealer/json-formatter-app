@@ -352,7 +352,7 @@
     <div class="container">
         <div class="header">
             <h1>🖼️ Image Detector</h1>
-            <p>Parse URLs (HTML or JSON), detect images, and display matching pages (up to 50 results)</p>
+            <p>Parse URLs, detect image URLs in content, and display matching pages (up to 50 results)</p>
         </div>
 
         <div class="content">
@@ -460,46 +460,67 @@
             return url.trim();
         }
 
-        function hasImages(html) {
-            // Check for img tags
-            const imgRegex = /<img[^>]*src=["']([^"']+)["'][^>]*>/gi;
-            const imgMatches = html.match(imgRegex);
-            if (imgMatches && imgMatches.length > 0) {
-                return { found: true, count: imgMatches.length, type: 'img-tags' };
-            }
+        function detectImageUrls(html) {
+            const imageUrls = new Set();
 
-            // Check for background images
-            const bgRegex = /background-image:\s*url\(['"]?([^'")\s]+)['"]?\)/gi;
-            const bgMatches = html.match(bgRegex);
-            if (bgMatches && bgMatches.length > 0) {
-                return { found: true, count: bgMatches.length, type: 'bg-images' };
-            }
+            // Pattern 1: Extract all URLs from the content
+            const urlRegex = /(https?:\/\/[^\s"'<>{}|\\^`\[\]]*)/gi;
+            const urls = html.match(urlRegex) || [];
 
-            // Check for image URLs in JSON
-            try {
-                const data = JSON.parse(html);
-                let imageCount = 0;
+            urls.forEach(url => {
+                // Check if URL looks like an image
+                const lowerUrl = url.toLowerCase();
                 
-                const searchForImages = (obj, depth = 0) => {
-                    if (depth > 10) return 0;
-                    
-                    if (Array.isArray(obj)) {
-                        return obj.reduce((sum, item) => sum + searchForImages(item, depth + 1), 0);
-                    } else if (obj && typeof obj === 'object') {
-                        return Object.values(obj).reduce((sum, value) => sum + searchForImages(value, depth + 1), 0);
-                    } else if (typeof obj === 'string') {
-                        if (/(\.jpg|\.jpeg|\.png|\.gif|\.webp|\.svg|\.bmp)(\?[^"']*)?$/i.test(obj) || /media|image|img/i.test(obj)) {
-                            return 1;
-                        }
+                // Image file extensions
+                if (/(\.jpg|\.jpeg|\.png|\.gif|\.webp|\.svg|\.bmp|\.tiff)(\?|&|$)/i.test(url)) {
+                    imageUrls.add(url);
+                }
+                // Media domains (Twitter/X, Instagram, Imgur, etc.)
+                else if (/pbs\.twimg\.com|cdninstagram|imgur\.com|media|image|img/i.test(url)) {
+                    if (!url.includes('platform') && !url.includes('static')) {
+                        imageUrls.add(url);
                     }
-                    return 0;
-                };
-                
-                const count = searchForImages(data);
-                return { found: count > 0, count: count, type: 'json' };
-            } catch (e) {}
+                }
+            });
 
-            return { found: false, count: 0, type: 'none' };
+            // Pattern 2: Look for img tags
+            const imgRegex = /<img[^>]*src=["']([^"']+)["'][^>]*>/gi;
+            let imgMatch;
+            while ((imgMatch = imgRegex.exec(html)) !== null) {
+                if (imgMatch[1]) imageUrls.add(imgMatch[1]);
+            }
+
+            // Pattern 3: Look for picture/source tags
+            const srcsetRegex = /srcset=["']([^"']+)["']/gi;
+            let srcsetMatch;
+            while ((srcsetMatch = srcsetRegex.exec(html)) !== null) {
+                if (srcsetMatch[1]) imageUrls.add(srcsetMatch[1]);
+            }
+
+            // Pattern 4: Look for background images
+            const bgRegex = /background(?:-image)?:\s*url\(['"]?([^'")\s]+)['"]?\)/gi;
+            let bgMatch;
+            while ((bgMatch = bgRegex.exec(html)) !== null) {
+                if (bgMatch[1]) imageUrls.add(bgMatch[1]);
+            }
+
+            // Pattern 5: Look for data URLs in JSON-like structures
+            const jsonImageRegex = /["'](?:image|media|url|src|href)["']\s*:\s*["']([^"']+\.(jpg|jpeg|png|gif|webp|svg))["']/gi;
+            let jsonMatch;
+            while ((jsonMatch = jsonImageRegex.exec(html)) !== null) {
+                if (jsonMatch[1]) imageUrls.add(jsonMatch[1]);
+            }
+
+            return Array.from(imageUrls);
+        }
+
+        function hasImages(html) {
+            const imageUrls = detectImageUrls(html);
+            return {
+                found: imageUrls.length > 0,
+                count: imageUrls.length,
+                urls: imageUrls
+            };
         }
 
         function stopProcessing() {
@@ -583,17 +604,20 @@
                     }
 
                     const imageCheck = hasImages(content);
-                    log(`  Type: ${imageCheck.type}, Images: ${imageCheck.count}`);
+                    log(`  Images: ${imageCheck.count} URL(s) found`);
 
                     if (imageCheck.found) {
                         results.push({
                             url: url,
                             content: content,
                             imageCount: imageCheck.count,
+                            imageUrls: imageCheck.urls,
                             contentType: contentType,
                             timestamp: new Date().toLocaleString()
                         });
-                        log(`  ✓ Found! (${results.length}/${Math.min(50, urls.length)})`);
+                        log(`  ✓ Match! (${results.length}/${Math.min(50, urls.length)})`);
+                    } else {
+                        log(`  ✗ No images detected`);
                     }
                 } catch (error) {
                     log(`  ✗ Error: ${error.message}`);
