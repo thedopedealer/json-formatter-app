@@ -352,7 +352,7 @@
     <div class="container">
         <div class="header">
             <h1>🖼️ Image Detector</h1>
-            <p>Parse URLs, detect image URLs in content, and display matching pages (up to 50 results)</p>
+            <p>Parse URLs and detect media URLs (pbs.twimg.com, etc.) in page content (up to 50 results)</p>
         </div>
 
         <div class="content">
@@ -386,7 +386,7 @@
                         <iframe id="pageFrame" sandbox="allow-same-origin allow-scripts"></iframe>
                         <div class="page-info">
                             <div class="page-info-item"><strong>URL:</strong> <span id="pageUrl">-</span></div>
-                            <div class="page-info-item"><strong>Images Found:</strong> <span id="imageCount">0</span></div>
+                            <div class="page-info-item"><strong>Media URLs Found:</strong> <span id="imageCount">0</span></div>
                             <div class="page-info-item"><strong>Type:</strong> <span id="contentType">-</span></div>
                         </div>
                     </div>
@@ -408,6 +408,17 @@
         let currentIndex = 0;
         let isProcessing = false;
         let abortControllers = [];
+
+        // List of allowed media domains
+        const ALLOWED_MEDIA_DOMAINS = [
+            'pbs.twimg.com',
+            'pbs-images.twimg.com',
+            'cdninstagram.com',
+            'scontent.cdninstagram.com',
+            'imgur.com',
+            'i.imgur.com',
+            'media.giphy.com'
+        ];
 
         function log(msg) {
             const debugLog = document.getElementById('debugLog');
@@ -460,66 +471,33 @@
             return url.trim();
         }
 
-        function detectImageUrls(html) {
-            const imageUrls = new Set();
+        function detectMediaUrls(html) {
+            const mediaUrls = new Set();
 
-            // Pattern 1: Extract all URLs from the content
+            // Extract all URLs from content
             const urlRegex = /(https?:\/\/[^\s"'<>{}|\\^`\[\]]*)/gi;
             const urls = html.match(urlRegex) || [];
 
             urls.forEach(url => {
-                // Check if URL looks like an image
-                const lowerUrl = url.toLowerCase();
+                // Only keep URLs from allowed media domains
+                const isAllowedDomain = ALLOWED_MEDIA_DOMAINS.some(domain => 
+                    url.toLowerCase().includes(domain)
+                );
                 
-                // Image file extensions
-                if (/(\.jpg|\.jpeg|\.png|\.gif|\.webp|\.svg|\.bmp|\.tiff)(\?|&|$)/i.test(url)) {
-                    imageUrls.add(url);
-                }
-                // Media domains (Twitter/X, Instagram, Imgur, etc.)
-                else if (/pbs\.twimg\.com|cdninstagram|imgur\.com|media|image|img/i.test(url)) {
-                    if (!url.includes('platform') && !url.includes('static')) {
-                        imageUrls.add(url);
-                    }
+                if (isAllowedDomain) {
+                    mediaUrls.add(url);
                 }
             });
 
-            // Pattern 2: Look for img tags
-            const imgRegex = /<img[^>]*src=["']([^"']+)["'][^>]*>/gi;
-            let imgMatch;
-            while ((imgMatch = imgRegex.exec(html)) !== null) {
-                if (imgMatch[1]) imageUrls.add(imgMatch[1]);
-            }
-
-            // Pattern 3: Look for picture/source tags
-            const srcsetRegex = /srcset=["']([^"']+)["']/gi;
-            let srcsetMatch;
-            while ((srcsetMatch = srcsetRegex.exec(html)) !== null) {
-                if (srcsetMatch[1]) imageUrls.add(srcsetMatch[1]);
-            }
-
-            // Pattern 4: Look for background images
-            const bgRegex = /background(?:-image)?:\s*url\(['"]?([^'")\s]+)['"]?\)/gi;
-            let bgMatch;
-            while ((bgMatch = bgRegex.exec(html)) !== null) {
-                if (bgMatch[1]) imageUrls.add(bgMatch[1]);
-            }
-
-            // Pattern 5: Look for data URLs in JSON-like structures
-            const jsonImageRegex = /["'](?:image|media|url|src|href)["']\s*:\s*["']([^"']+\.(jpg|jpeg|png|gif|webp|svg))["']/gi;
-            let jsonMatch;
-            while ((jsonMatch = jsonImageRegex.exec(html)) !== null) {
-                if (jsonMatch[1]) imageUrls.add(jsonMatch[1]);
-            }
-
-            return Array.from(imageUrls);
+            return Array.from(mediaUrls);
         }
 
-        function hasImages(html) {
-            const imageUrls = detectImageUrls(html);
+        function hasMediaUrls(html) {
+            const mediaUrls = detectMediaUrls(html);
             return {
-                found: imageUrls.length > 0,
-                count: imageUrls.length,
-                urls: imageUrls
+                found: mediaUrls.length > 0,
+                count: mediaUrls.length,
+                urls: mediaUrls
             };
         }
 
@@ -603,21 +581,21 @@
                         content = await response.text();
                     }
 
-                    const imageCheck = hasImages(content);
-                    log(`  Images: ${imageCheck.count} URL(s) found`);
+                    const mediaCheck = hasMediaUrls(content);
+                    log(`  Media URLs: ${mediaCheck.count}`);
 
-                    if (imageCheck.found) {
+                    if (mediaCheck.found) {
                         results.push({
                             url: url,
                             content: content,
-                            imageCount: imageCheck.count,
-                            imageUrls: imageCheck.urls,
+                            imageCount: mediaCheck.count,
+                            imageUrls: mediaCheck.urls,
                             contentType: contentType,
                             timestamp: new Date().toLocaleString()
                         });
                         log(`  ✓ Match! (${results.length}/${Math.min(50, urls.length)})`);
                     } else {
-                        log(`  ✗ No images detected`);
+                        log(`  ✗ No media URLs detected`);
                     }
                 } catch (error) {
                     log(`  ✗ Error: ${error.message}`);
@@ -632,10 +610,10 @@
             if (results.length > 0) {
                 currentIndex = 0;
                 displayResult(0);
-                messageDiv.innerHTML = `<div class="message success-message">✓ Found ${results.length} page${results.length !== 1 ? 's' : ''} with images (processed ${urls.length} URLs)</div>`;
+                messageDiv.innerHTML = `<div class="message success-message">✓ Found ${results.length} page${results.length !== 1 ? 's' : ''} with media URLs (processed ${urls.length} URLs)</div>`;
                 document.getElementById('status').textContent = 'Complete';
             } else {
-                messageDiv.innerHTML = '<div class="message error-message">❌ No pages with images found.</div>';
+                messageDiv.innerHTML = '<div class="message error-message">❌ No pages with media URLs found.</div>';
                 document.getElementById('status').textContent = 'No results';
                 clearDisplay();
             }
