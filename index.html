@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JSON Formatter - Tweet Image Filter</title>
+    <title>Image Detector - URL Parser</title>
     <style>
         * {
             margin: 0;
@@ -177,31 +177,40 @@
             color: #333;
         }
 
-        .json-viewer {
+        .page-viewer {
             flex: 1;
-            background: #1e1e1e;
-            color: #d4d4d4;
-            padding: 16px;
+            background: white;
+            border: 1px solid #ddd;
             border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page-viewer iframe {
+            flex: 1;
+            border: none;
+            width: 100%;
+        }
+
+        .page-info {
+            background: #f8f9fa;
+            padding: 12px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+            max-height: 100px;
             overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-            line-height: 1.5;
-            position: relative;
         }
 
-        .json-viewer pre {
-            margin: 0;
-            white-space: pre-wrap;
-            word-wrap: break-word;
+        .page-info strong {
+            color: #333;
         }
 
-        .keyword { color: #9cdcfe; }
-        .string { color: #ce9178; }
-        .number { color: #b5cea8; }
-        .boolean { color: #569cd6; }
-        .null { color: #569cd6; }
-        .error { color: #f48771; }
+        .page-info-item {
+            margin: 4px 0;
+            word-break: break-all;
+        }
 
         .pagination {
             display: flex;
@@ -232,13 +241,6 @@
             color: #999;
             text-align: center;
             flex-direction: column;
-        }
-
-        .empty-state svg {
-            width: 80px;
-            height: 80px;
-            margin-bottom: 16px;
-            opacity: 0.5;
         }
 
         .loading {
@@ -293,18 +295,6 @@
                 height: auto;
             }
 
-            .header {
-                padding: 20px;
-            }
-
-            .header h1 {
-                font-size: 20px;
-            }
-
-            .input-section {
-                padding: 15px;
-            }
-
             textarea {
                 height: 100px;
             }
@@ -315,10 +305,6 @@
 
             .button-group {
                 width: 100%;
-            }
-
-            .button-group button {
-                flex: 1;
             }
 
             .stats {
@@ -335,15 +321,15 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 JSON Formatter</h1>
-            <p>Parse URLs, filter by tweet images, and display formatted JSON (up to 50 results)</p>
+            <h1>🖼️ Image Detector</h1>
+            <p>Parse URLs (HTML or JSON), detect images, and display matching pages (up to 50 results)</p>
         </div>
 
         <div class="content">
             <div class="input-section">
                 <h2>Input URLs</h2>
                 <label>Paste your URL list (one per line). Supports plain URLs, hyperlinks, and web.archive.org links:</label>
-                <textarea id="urlInput" placeholder="Paste URLs or hyperlinks here...&#10;https://example.com/api/data&#10;https://web.archive.org/web/20260602175622/https://twitter.com/user/status/123"></textarea>
+                <textarea id="urlInput" placeholder="Paste URLs or hyperlinks here..."></textarea>
 
                 <div class="controls">
                     <div class="button-group">
@@ -352,7 +338,7 @@
                     </div>
                     <div class="stats">
                         <div class="stats-item"><strong>URLs:</strong> <span id="urlCount">0</span></div>
-                        <div class="stats-item"><strong>Valid:</strong> <span id="validCount">0</span></div>
+                        <div class="stats-item"><strong>Found:</strong> <span id="validCount">0</span></div>
                         <div class="stats-item"><strong>Failed:</strong> <span id="failedCount">0</span></div>
                         <div class="stats-item"><strong>Status:</strong> <span id="status">Ready</span></div>
                     </div>
@@ -363,14 +349,12 @@
 
             <div class="main-content">
                 <div class="display-panel">
-                    <h2>Formatted Result</h2>
-                    <div class="json-viewer" id="jsonViewer">
-                        <div class="empty-state">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-                                <polyline points="13 2 13 9 20 9"></polyline>
-                            </svg>
-                            <p>Paste URLs and click "Process URLs" to get started</p>
+                    <h2>Page Preview</h2>
+                    <div class="page-viewer">
+                        <iframe id="pageFrame"></iframe>
+                        <div class="page-info">
+                            <div class="page-info-item"><strong>URL:</strong> <span id="pageUrl">-</span></div>
+                            <div class="page-info-item"><strong>Images Found:</strong> <span id="imageCount">0</span></div>
                         </div>
                     </div>
 
@@ -390,12 +374,10 @@
         let results = [];
         let currentIndex = 0;
 
-        // Extract URLs from pasted content (handles hyperlinks and plain text)
         function extractUrlsFromPaste(text) {
             const urls = [];
-
-            // Check if it's HTML with links
             const htmlParser = new DOMParser();
+            
             try {
                 const doc = htmlParser.parseFromString(text, 'text/html');
                 const links = doc.querySelectorAll('a');
@@ -408,25 +390,20 @@
                     });
                     if (urls.length > 0) return urls;
                 }
-            } catch (e) {
-                // If HTML parsing fails, try plain text parsing
-            }
+            } catch (e) {}
 
-            // Fallback: Extract plain URLs
             const urlRegex = /(https?:\/\/[^\s]+)/gi;
             const matches = text.match(urlRegex);
             if (matches) {
                 return matches.map(url => url.trim());
             }
 
-            // Last resort: split by newlines and filter
             return text.split('\n').filter(line => {
                 const trimmed = line.trim();
                 return trimmed.length > 0 && (trimmed.startsWith('http://') || trimmed.startsWith('https://'));
             });
         }
 
-        // Extract actual URL from web.archive.org link
         function extractUrl(url) {
             const archiveMatch = url.match(/web\.archive\.org\/web\/\d+\/(.*)/);
             if (archiveMatch) {
@@ -435,43 +412,37 @@
             return url.trim();
         }
 
-        // Check if JSON has images in tweets section
-        function hasImagesInTweets(data) {
-            if (!data || typeof data !== 'object') return false;
-
-            if (Array.isArray(data.tweets)) {
-                return data.tweets.some(tweet => {
-                    if (!tweet || typeof tweet !== 'object') return false;
-                    if (Array.isArray(tweet.images)) {
-                        return tweet.images.some(img => typeof img === 'string' && img.length > 0);
-                    }
-                    if (tweet.image && typeof tweet.image === 'string') {
-                        return tweet.image.length > 0;
-                    }
-                    return false;
-                });
+        function hasImages(html) {
+            // Check for img tags
+            const imgRegex = /<img[^>]*src=["']([^"']+)["'][^>]*>/gi;
+            const imgMatches = html.match(imgRegex);
+            if (imgMatches && imgMatches.length > 0) {
+                return { found: true, count: imgMatches.length };
             }
-            return false;
-        }
 
-        // Syntax highlight JSON
-        function syntaxHighlight(json) {
-            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
-                let cls = 'number';
-                if (/^"/.test(match)) {
-                    if (/:$/.test(match)) {
-                        cls = 'keyword';
-                    } else {
-                        cls = 'string';
+            // Check for image URLs in JSON
+            try {
+                const data = JSON.parse(html);
+                let imageCount = 0;
+                
+                const searchForImages = (obj) => {
+                    if (Array.isArray(obj)) {
+                        obj.forEach(item => imageCount += searchForImages(item));
+                    } else if (obj && typeof obj === 'object') {
+                        Object.values(obj).forEach(value => imageCount += searchForImages(value));
+                    } else if (typeof obj === 'string') {
+                        if (/(\.jpg|\.jpeg|\.png|\.gif|\.webp|\.svg)(\?[^"']*)?$/i.test(obj) || /\.(jpg|jpeg|png|gif|webp|svg)/i.test(obj)) {
+                            imageCount++;
+                        }
                     }
-                } else if (/true|false/.test(match)) {
-                    cls = 'boolean';
-                } else if (/null/.test(match)) {
-                    cls = 'null';
-                }
-                return `<span class="${cls}">${match}</span>`;
-            });
+                    return imageCount > 0 ? 1 : 0;
+                };
+                
+                const count = searchForImages(data);
+                return { found: count > 0, count: count };
+            } catch (e) {}
+
+            return { found: false, count: 0 };
         }
 
         async function processUrls() {
@@ -487,11 +458,10 @@
             messageDiv.innerHTML = '<div class="message info-message"><div class="loading"><div class="spinner"></div> Processing...</div></div>';
             processBtn.disabled = true;
 
-            // Extract URLs from paste (handles hyperlinks)
             let urls = extractUrlsFromPaste(input);
 
             if (urls.length === 0) {
-                messageDiv.innerHTML = '<div class="message error-message">❌ No valid URLs found. Make sure you paste URLs or hyperlinks.</div>';
+                messageDiv.innerHTML = '<div class="message error-message">❌ No valid URLs found.</div>';
                 processBtn.disabled = false;
                 return;
             }
@@ -505,8 +475,6 @@
             for (let i = 0; i < urls.length && results.length < 50; i++) {
                 try {
                     const url = extractUrl(urls[i]);
-
-                    // Add timeout to fetch request
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -522,18 +490,27 @@
                         continue;
                     }
 
-                    const data = await response.json();
+                    const contentType = response.headers.get('content-type');
+                    let content;
 
-                    if (hasImagesInTweets(data)) {
+                    if (contentType && contentType.includes('application/json')) {
+                        content = JSON.stringify(await response.json(), null, 2);
+                    } else {
+                        content = await response.text();
+                    }
+
+                    const imageCheck = hasImages(content);
+
+                    if (imageCheck.found) {
                         results.push({
                             url: url,
-                            data: data,
+                            content: content,
+                            imageCount: imageCheck.count,
                             timestamp: new Date().toLocaleString()
                         });
                     }
                 } catch (error) {
                     failedCount++;
-                    console.error(`Error processing ${urls[i]}:`, error);
                 }
             }
 
@@ -544,10 +521,10 @@
             if (results.length > 0) {
                 currentIndex = 0;
                 displayResult(0);
-                messageDiv.innerHTML = `<div class="message success-message">✓ Found ${results.length} valid result${results.length !== 1 ? 's' : ''} (showing up to 50)</div>`;
+                messageDiv.innerHTML = `<div class="message success-message">✓ Found ${results.length} page${results.length !== 1 ? 's' : ''} with images</div>`;
                 document.getElementById('status').textContent = 'Complete';
             } else {
-                messageDiv.innerHTML = '<div class="message error-message">❌ No results found. Make sure URLs contain JSON with tweet images.</div>';
+                messageDiv.innerHTML = '<div class="message error-message">❌ No pages with images found.</div>';
                 document.getElementById('status').textContent = 'No results';
                 clearDisplay();
             }
@@ -559,10 +536,12 @@
             if (index < 0 || index >= results.length) return;
 
             const result = results[index];
-            const viewer = document.getElementById('jsonViewer');
-            const jsonString = JSON.stringify(result.data, null, 2);
-
-            viewer.innerHTML = `<pre>${syntaxHighlight(jsonString)}</pre>`;
+            const frame = document.getElementById('pageFrame');
+            
+            frame.srcdoc = result.content;
+            
+            document.getElementById('pageUrl').textContent = result.url;
+            document.getElementById('imageCount').textContent = result.imageCount;
             document.getElementById('currentPage').textContent = index + 1;
 
             document.getElementById('prevBtn').disabled = index === 0;
@@ -596,27 +575,20 @@
         }
 
         function clearDisplay() {
-            const viewer = document.getElementById('jsonViewer');
-            viewer.innerHTML = `<div class="empty-state">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path d="M13 2 13 9 20 9"></path>
-                    <polyline points="13 2 13 9 20 9"></polyline>
-                </svg>
-                <p>No results to display</p>
-            </div>`;
+            document.getElementById('pageFrame').srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;"><p>No pages to display</p></div>';
+            document.getElementById('pageUrl').textContent = '-';
+            document.getElementById('imageCount').textContent = '0';
             document.getElementById('currentPage').textContent = '0';
             document.getElementById('totalPages').textContent = '0';
             document.getElementById('prevBtn').disabled = true;
             document.getElementById('nextBtn').disabled = true;
         }
 
-        // Keyboard navigation
         document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft') showPrevious();
             if (e.key === 'ArrowRight') showNext();
         });
 
-        // Handle paste event to auto-extract URLs from hyperlinks
         document.getElementById('urlInput').addEventListener('paste', (e) => {
             e.preventDefault();
             const items = e.clipboardData.items;
